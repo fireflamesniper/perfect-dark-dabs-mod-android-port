@@ -7,6 +7,12 @@
 #elif defined(__SWITCH__)
 	#define PLATFORM_POSIX 1
 	#define PLATFORM_NSWITCH 1
+#elif defined(__ANDROID__)
+	// Android is Linux underneath and most of the Linux code applies; what
+	// does not (paths, the updater, execinfo) checks PLATFORM_ANDROID
+	#define PLATFORM_POSIX 1
+	#define PLATFORM_LINUX 1
+	#define PLATFORM_ANDROID 1
 #elif defined(__linux__)
 	#define PLATFORM_POSIX 1
 	#define PLATFORM_LINUX 1

@@ -75,6 +75,156 @@ static s32 g_BoardCount = 0;
 static s32 g_BoardStage = -1;
 static s32 g_BoardDiff = -1;
 
+// The JSON helpers need no network, and the lobby and the community pages
+// use them in a build without one (Android has no libcurl)
+
+/**
+ * Pull one value out of a flat JSON object.
+ *
+ * The replies this speaks to are small, flat and written by the server on the
+ * other end of this file, so a scanner is enough and a parser would be a
+ * dependency. It is still written to survive nonsense: nothing is copied
+ * without a length, and a key that is not there simply is not found.
+ */
+bool ghostnetJsonField(const char *json, const char *end, const char *key,
+		char *out, u32 outsize)
+{
+	// What JSON writes an escape as, and what it means.
+	static const char escFrom[] = "\"\\/bfnrt";
+	static const char escTo[]   = "\"\\/\b\f\n\r\t";
+	char pattern[64];
+	const char *at = json;
+	u32 patlen;
+	u32 i = 0;
+
+	patlen = (u32)snprintf(pattern, sizeof(pattern), "\"%s\"", key);
+
+	// end bounds the search to one object. Without it a field missing from a
+	// leaderboard row was answered with the next row's, so the defaults below
+	// every lookup could only ever apply to the last row in the reply.
+	if (end == NULL) {
+		end = json + strlen(json);
+	}
+
+	for (;;) {
+		const char *p = strstr(at, pattern);
+
+		if (p == NULL || p >= end) {
+			return false;
+		}
+
+		at = p + patlen;
+
+		while (at < end && *at == ' ') {
+			at++;
+		}
+
+		// A key is a name with a colon after it. The same characters inside
+		// some other field's value are not this field - a reply whose message
+		// mentioned "error" used to be read as the error itself.
+		if (at < end && *at == ':') {
+			at++;
+			break;
+		}
+	}
+
+	while (at < end && *at == ' ') {
+		at++;
+	}
+
+	if (at < end && *at == '"') {
+		at++;
+
+		while (at < end && *at != '"' && i + 1 < outsize) {
+			const char *esc;
+
+			if (*at != '\\' || at + 1 >= end) {
+				out[i++] = *at++;
+				continue;
+			}
+
+			// An escaped quote is not the end of the string, which is what
+			// reading these literally made of it.
+			at++;
+			esc = *at ? strchr(escFrom, *at) : NULL;
+
+			if (esc && *esc) {
+				out[i++] = escTo[esc - escFrom];
+				at++;
+			} else if (*at == 'u' && at + 4 < end) {
+				u32 cp = 0;
+				s32 k;
+
+				at++;
+
+				for (k = 0; k < 4; k++, at++) {
+					const char c = *at;
+
+					cp = (cp << 4) | (u32)(c >= '0' && c <= '9' ? c - '0'
+							: c >= 'a' && c <= 'f' ? c - 'a' + 10
+							: c >= 'A' && c <= 'F' ? c - 'A' + 10 : 0);
+				}
+
+				// A name is shown in the game's own font, which has no more
+				// than ASCII to draw with anyway.
+				out[i++] = cp >= 0x20 && cp < 0x7f ? (char)cp : '?';
+			} else {
+				out[i++] = *at++;
+			}
+		}
+	} else {
+		while (at < end && *at && *at != ',' && *at != '}' && *at != ' ' && i + 1 < outsize) {
+			out[i++] = *at++;
+		}
+	}
+
+	out[i] = '\0';
+
+	return true;
+}
+
+/**
+ * Copy a string into a JSON string literal, escaping what would end it early.
+ *
+ * The body below is built by hand rather than by a serialiser, which is right
+ * for two fields and wrong the moment one of them can contain a quote. The
+ * name is typed on the game's own keyboard and the server's rules for it are
+ * the server's, not this end's: a name with a quote in it should be refused by
+ * the server having read a well formed request, not turned into a request that
+ * says something else.
+ */
+void ghostnetJsonEscape(const char *src, char *dst, u32 dstsize)
+{
+	u32 i = 0;
+
+	while (*src) {
+		unsigned char c = (unsigned char)*src++;
+
+		if (c == '"' || c == '\\') {
+			if (i + 2 >= dstsize) {
+				break;
+			}
+
+			dst[i++] = '\\';
+			dst[i++] = c;
+		} else if (c < 0x20) {
+			if (i + 6 >= dstsize) {
+				break;
+			}
+
+			i += snprintf(dst + i, dstsize - i, "\\u%04x", c);
+		} else {
+			if (i + 1 >= dstsize) {
+				break;
+			}
+
+			dst[i++] = c;
+		}
+	}
+
+	dst[i] = '\0';
+}
+
 #ifdef PD_GHOST_NET
 
 #define JOB_NONE     0
@@ -373,110 +523,6 @@ bool ghostnetIsSignedIn(void)
 	return same;
 }
 
-/**
- * Pull one value out of a flat JSON object.
- *
- * The replies this speaks to are small, flat and written by the server on the
- * other end of this file, so a scanner is enough and a parser would be a
- * dependency. It is still written to survive nonsense: nothing is copied
- * without a length, and a key that is not there simply is not found.
- */
-bool ghostnetJsonField(const char *json, const char *end, const char *key,
-		char *out, u32 outsize)
-{
-	// What JSON writes an escape as, and what it means.
-	static const char escFrom[] = "\"\\/bfnrt";
-	static const char escTo[]   = "\"\\/\b\f\n\r\t";
-	char pattern[64];
-	const char *at = json;
-	u32 patlen;
-	u32 i = 0;
-
-	patlen = (u32)snprintf(pattern, sizeof(pattern), "\"%s\"", key);
-
-	// end bounds the search to one object. Without it a field missing from a
-	// leaderboard row was answered with the next row's, so the defaults below
-	// every lookup could only ever apply to the last row in the reply.
-	if (end == NULL) {
-		end = json + strlen(json);
-	}
-
-	for (;;) {
-		const char *p = strstr(at, pattern);
-
-		if (p == NULL || p >= end) {
-			return false;
-		}
-
-		at = p + patlen;
-
-		while (at < end && *at == ' ') {
-			at++;
-		}
-
-		// A key is a name with a colon after it. The same characters inside
-		// some other field's value are not this field - a reply whose message
-		// mentioned "error" used to be read as the error itself.
-		if (at < end && *at == ':') {
-			at++;
-			break;
-		}
-	}
-
-	while (at < end && *at == ' ') {
-		at++;
-	}
-
-	if (at < end && *at == '"') {
-		at++;
-
-		while (at < end && *at != '"' && i + 1 < outsize) {
-			const char *esc;
-
-			if (*at != '\\' || at + 1 >= end) {
-				out[i++] = *at++;
-				continue;
-			}
-
-			// An escaped quote is not the end of the string, which is what
-			// reading these literally made of it.
-			at++;
-			esc = *at ? strchr(escFrom, *at) : NULL;
-
-			if (esc && *esc) {
-				out[i++] = escTo[esc - escFrom];
-				at++;
-			} else if (*at == 'u' && at + 4 < end) {
-				u32 cp = 0;
-				s32 k;
-
-				at++;
-
-				for (k = 0; k < 4; k++, at++) {
-					const char c = *at;
-
-					cp = (cp << 4) | (u32)(c >= '0' && c <= '9' ? c - '0'
-							: c >= 'a' && c <= 'f' ? c - 'a' + 10
-							: c >= 'A' && c <= 'F' ? c - 'A' + 10 : 0);
-				}
-
-				// A name is shown in the game's own font, which has no more
-				// than ASCII to draw with anyway.
-				out[i++] = cp >= 0x20 && cp < 0x7f ? (char)cp : '?';
-			} else {
-				out[i++] = *at++;
-			}
-		}
-	} else {
-		while (at < end && *at && *at != ',' && *at != '}' && *at != ' ' && i + 1 < outsize) {
-			out[i++] = *at++;
-		}
-	}
-
-	out[i] = '\0';
-
-	return true;
-}
 
 #define GHOSTNET_AGENT "pd-dabs-mod-ghost/1"
 
@@ -893,47 +939,6 @@ bool ghostnetSend(const struct ghostnetreq *req, struct ghostnetbuf *buf,
  * the PIN as the actual control, but sending it in clear would still be
  * handing it to anyone on the same network.
  */
-/**
- * Copy a string into a JSON string literal, escaping what would end it early.
- *
- * The body below is built by hand rather than by a serialiser, which is right
- * for two fields and wrong the moment one of them can contain a quote. The
- * name is typed on the game's own keyboard and the server's rules for it are
- * the server's, not this end's: a name with a quote in it should be refused by
- * the server having read a well formed request, not turned into a request that
- * says something else.
- */
-void ghostnetJsonEscape(const char *src, char *dst, u32 dstsize)
-{
-	u32 i = 0;
-
-	while (*src) {
-		unsigned char c = (unsigned char)*src++;
-
-		if (c == '"' || c == '\\') {
-			if (i + 2 >= dstsize) {
-				break;
-			}
-
-			dst[i++] = '\\';
-			dst[i++] = c;
-		} else if (c < 0x20) {
-			if (i + 6 >= dstsize) {
-				break;
-			}
-
-			i += snprintf(dst + i, dstsize - i, "\\u%04x", c);
-		} else {
-			if (i + 1 >= dstsize) {
-				break;
-			}
-
-			dst[i++] = c;
-		}
-	}
-
-	dst[i] = '\0';
-}
 
 /**
  * Whether a reply says it worked.

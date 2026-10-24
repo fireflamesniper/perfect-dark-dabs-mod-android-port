@@ -668,6 +668,10 @@ s32 fsInit(void)
 
 	// if this is set, default to exe path for everything
 	portable = sysArgCheck("--portable");
+#ifdef PLATFORM_ANDROID
+	// one folder for the ROM, the mods and the saves (sysGetAndroidPath())
+	portable = 1;
+#endif
 	if (portable) {
 		strcpy(homeDir, exeDir);
 	} else {

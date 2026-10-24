@@ -35,6 +35,10 @@
 
 static SDL_GameController *pads[INPUT_MAX_CONTROLLERS];
 
+// inputSetTouchPad(): written by Android's UI thread, read here
+static volatile u32 touchButtons;
+static volatile s16 touchAxes[4];
+
 #define CONTROLLERCFG_DEFAULT { \
 	.rumbleOn = 0, \
 	.rumbleScale = 0.5f, \
@@ -1026,6 +1030,12 @@ s32 inputInit(void)
 
 	// Set SDL hints before initializing the controller subsystem.
 	useHIDAPIActive = useHIDAPI;
+
+#ifdef PLATFORM_ANDROID
+	// Back is the game's (inputKeyPressed()), not the activity's, which
+	// would otherwise close the game on the first press
+	SDL_SetHint(SDL_HINT_ANDROID_TRAP_BACK_BUTTON, "1");
+#endif
 	useRawInputActive = useRawInput;
 
 	if (useHIDAPI) {
@@ -1222,6 +1232,29 @@ static inline f32 inputAxisSens(const struct controllercfg *cfg, u32 axis)
 	return sens;
 }
 
+void inputSetTouchPad(u32 buttons, const f32 *axes)
+{
+	for (s32 i = 0; i < 4; ++i) {
+		const f32 v = axes[i] < -1.f ? -1.f : (axes[i] > 1.f ? 1.f : axes[i]);
+		touchAxes[i] = (s16)(v * 32767.f);
+	}
+
+	touchButtons = buttons;
+}
+
+// A pad axis with the on-screen stick's added, for player 1
+static inline s32 inputPadAxis(s32 idx, s32 axis)
+{
+	s32 v = pads[idx] ? SDL_GameControllerGetAxis(pads[idx], axis) : 0;
+
+	if (idx == 0 && axis >= SDL_CONTROLLER_AXIS_LEFTX && axis <= SDL_CONTROLLER_AXIS_RIGHTY) {
+		v += touchAxes[axis];
+		v = v < -32768 ? -32768 : (v > 32767 ? 32767 : v);
+	}
+
+	return v;
+}
+
 s32 inputReadController(s32 idx, OSContPad *npad)
 {
 	if (idx < 0 || idx >= INPUT_MAX_CONTROLLERS  || !npad) {
@@ -1271,14 +1304,15 @@ s32 inputReadController(s32 idx, OSContPad *npad)
 		}
 	}
 
-	if (!pads[idx]) {
+	// player 1 has the on-screen sticks with or without a pad
+	if (!pads[idx] && (idx != 0 || !(touchAxes[0] | touchAxes[1] | touchAxes[2] | touchAxes[3]))) {
 		return 0;
 	}
 
-	s32 leftX = SDL_GameControllerGetAxis(pads[idx], cfg->axisMap[0][0]);
-	s32 leftY = SDL_GameControllerGetAxis(pads[idx], cfg->axisMap[0][1]);
-	s32 rightX = SDL_GameControllerGetAxis(pads[idx], cfg->axisMap[1][0]);
-	s32 rightY = SDL_GameControllerGetAxis(pads[idx], cfg->axisMap[1][1]);
+	s32 leftX = inputPadAxis(idx, cfg->axisMap[0][0]);
+	s32 leftY = inputPadAxis(idx, cfg->axisMap[0][1]);
+	s32 rightX = inputPadAxis(idx, cfg->axisMap[1][0]);
+	s32 rightY = inputPadAxis(idx, cfg->axisMap[1][1]);
 
 	leftX = inputAxisScale(leftX, cfg->deadzone[cfg->axisMap[0][0]], inputAxisSens(cfg, cfg->axisMap[0][0]));
 	leftY = inputAxisScale(leftY, cfg->deadzone[cfg->axisMap[0][1]], inputAxisSens(cfg, cfg->axisMap[0][1]));
@@ -1692,7 +1726,14 @@ s32 inputKeyPressed(u32 vk)
 	if (vk >= VK_KEYBOARD_BEGIN && vk < VK_MOUSE_BEGIN) {
 		const u8 *state = SDL_GetKeyboardState(NULL);
 		const u32 sc = vk - VK_KEYBOARD_BEGIN;
+#ifdef PLATFORM_ANDROID
+		// Android's Back (the system bar's, a remote's, and some pads' B or
+		// Select) is Escape: out of a menu, the pause menu in a match
+		const s32 down = state[sc] || (sc == SDL_SCANCODE_ESCAPE && state[SDL_SCANCODE_AC_BACK])
+			|| (testHeldKey && vk == testHeldKey);
+#else
 		const s32 down = state[sc] || (testHeldKey && vk == testHeldKey);
+#endif
 
 		if (keyLatched[sc]) {
 			if (down) {
@@ -1712,6 +1753,10 @@ s32 inputKeyPressed(u32 vk)
 	if (vk >= VK_JOY_BEGIN && vk < VK_TOTAL_COUNT) {
 		vk -= VK_JOY_BEGIN;
 		const s32 idx = vk / INPUT_MAX_CONTROLLER_BUTTONS;
+		// the on-screen controls are player 1's pad, there or not
+		if (idx == 0 && (touchButtons & (1U << (vk % INPUT_MAX_CONTROLLER_BUTTONS)))) {
+			return 1;
+		}
 		if (idx < 0 || idx >= INPUT_MAX_CONTROLLERS || !pads[idx]) {
 			return 0;
 		}

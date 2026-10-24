@@ -175,13 +175,55 @@ static long __stdcall crashHandler(PEXCEPTION_POINTERS exinfo)
 
 #include <ucontext.h>
 #include <signal.h>
+#ifdef PLATFORM_ANDROID
+#include <unwind.h>
+#else
 #include <execinfo.h>
+#endif
 #include <unistd.h>
 #include <ctype.h>
 #include <dlfcn.h>
 #include <sys/fcntl.h>
 
 static struct sigaction prevSigAction;
+
+#ifdef PLATFORM_ANDROID
+// bionic has execinfo only from API 33, so the frames come from the unwinder
+// the NDK links, and are printed as addresses (the MODULE line is the base to
+// take them from for addr2line)
+struct crashunwind {
+	void **frames;
+	s32 num;
+	s32 max;
+};
+
+static _Unwind_Reason_Code crashUnwindFrame(struct _Unwind_Context *ctx, void *arg)
+{
+	struct crashunwind *uw = arg;
+	const uintptr_t pc = _Unwind_GetIP(ctx);
+
+	if (pc) {
+		if (uw->num >= uw->max) {
+			return _URC_END_OF_STACK;
+		}
+		uw->frames[uw->num++] = (void *)pc;
+	}
+
+	return _URC_NO_REASON;
+}
+
+static s32 backtrace(void **frames, s32 max)
+{
+	struct crashunwind uw = { frames, 0, max };
+	_Unwind_Backtrace(crashUnwindFrame, &uw);
+	return uw.num;
+}
+
+static char **backtrace_symbols(void *const *frames, s32 num)
+{
+	return NULL;
+}
+#endif
 
 static s32 crashIsDebuggerPresent(void)
 {

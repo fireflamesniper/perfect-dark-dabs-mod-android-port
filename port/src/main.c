@@ -214,6 +214,20 @@ static void mainApplySettingsRevision(void)
 	g_SettingsRevision = SETTINGS_REVISION;
 }
 
+#include "platform.h"
+
+#ifdef PLATFORM_ANDROID
+// SDLActivity runs SDL_main on its own thread once the surface is up
+#undef main
+#define main pdMain
+static int pdMain(int argc, const char **argv);
+
+int SDL_main(int argc, char *argv[])
+{
+	return pdMain(argc, (const char **)argv);
+}
+#endif
+
 int main(int argc, const char **argv)
 {
 	sysInitArgs(argc, argv);

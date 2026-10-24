@@ -128,6 +128,13 @@ s32 inputInit(void);
 // returns 0 if read, non-0 if failed
 s32 inputReadController(s32 idx, OSContPad *npad);
 
+// The on-screen controls (Android, android/.../TouchControlsView.java): which
+// of player 1's pad buttons are held, as bits by SDL_CONTROLLER_BUTTON_* (30
+// and 31 the triggers, as the VK_JOY numbering has them), and the sticks as
+// -1..1 (left x, left y, right x, right y; y down). Pressed as though on the
+// pad in slot 0, so a pad's binds apply, and with a real pad held as well.
+void inputSetTouchPad(u32 buttons, const f32 *axes);
+
 // returns 1 if rumble is supported for specified player's controller
 s32 inputRumbleSupported(s32 idx);
 

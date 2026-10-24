@@ -1,0 +1,109 @@
+plugins {
+    id 'com.android.application'
+}
+
+// SDL2 is built from source with the game: the Java half (org.libsdl.app,
+// SDLActivity and its controller handling) has to be from the same release as
+// libSDL2.so, so both come out of one tarball, fetched into android/deps/ the
+// first time the project is configured.
+def sdlVersion = '2.32.10'
+def sdlDir = file("${rootDir}/deps/SDL2-${sdlVersion}")
+if (!file("${sdlDir}/CMakeLists.txt").exists()) {
+    def tgz = file("${rootDir}/deps/SDL2-${sdlVersion}.tar.gz")
+    tgz.parentFile.mkdirs()
+    logger.lifecycle("Fetching SDL ${sdlVersion}")
+    ant.get(src: "https://github.com/libsdl-org/SDL/releases/download/release-${sdlVersion}/SDL2-${sdlVersion}.tar.gz",
+            dest: tgz)
+    copy {
+        from tarTree(resources.gzip(tgz))
+        into "${rootDir}/deps"
+    }
+    tgz.delete()
+}
+
+// The asset headers and the language packs are made by Python scripts on the
+// host, and the NDK's toolchain points CMake's searches at the device's sysroot,
+// so the interpreter is found here and handed over.
+def findHostPython() {
+    for (cmd in [['py', '-3'], ['python3'], ['python']]) {
+        try {
+            def proc = (cmd + ['-c', 'import sys; print(sys.executable)']).execute()
+            def out = proc.text.trim()
+            if (proc.waitFor() == 0 && out) {
+                return out.replace('\\', '/')
+            }
+        } catch (IOException ignored) {
+        }
+    }
+    return null
+}
+def hostPython = findHostPython()
+
+android {
+    namespace 'com.dabdavis.perfectdark'
+    compileSdk 34
+    ndkVersion '27.0.12077973'
+
+    defaultConfig {
+        applicationId 'com.dabdavis.perfectdark'
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+
+        ndk {
+            // -PpdAbis=arm64-v8a,x86_64 for an emulator as well
+            abiFilters(*(project.findProperty('pdAbis') ?: 'arm64-v8a').split(','))
+        }
+
+        externalNativeBuild {
+            cmake {
+                // forward slashes: CMake reads a backslash in a path as an escape
+                arguments "-DSDL2_SOURCE_DIR=${sdlDir.absolutePath.replace('\\', '/')}",
+                        '-DPD_VULKAN=OFF',
+                        '-DANDROID_STL=c++_shared',
+                        // the decomp's -Og and the hot files' -O2 (CMakeLists.txt);
+                        // Debug would build the whole game at -O0
+                        '-DCMAKE_BUILD_TYPE=RelWithDebInfo'
+                if (hostPython) {
+                    arguments "-DPython3_EXECUTABLE=${hostPython}"
+                }
+                targets 'pd', 'SDL2'
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path file('../../CMakeLists.txt')
+            version '3.22.1'
+        }
+    }
+
+    sourceSets {
+        main {
+            java.srcDirs += "${sdlDir}/android-project/app/src/main/java"
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            // signed with the debug key so assembleRelease gives an installable
+            // APK; a store build would sign with its own
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    packagingOptions {
+        jniLibs {
+            // keep the symbols: a crash's backtrace is read from the device
+            keepDebugSymbols += ['**/*.so']
+        }
+    }
+}

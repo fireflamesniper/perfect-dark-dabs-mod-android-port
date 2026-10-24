@@ -518,7 +518,8 @@ OSIntMask osSetIntMask(OSIntMask mask)
 
 /* libc compatibility wrappers */
 
-#ifndef PLATFORM_OSX
+// (bionic has its own, inline in strings.h)
+#if !defined(PLATFORM_OSX) && !defined(PLATFORM_ANDROID)
 
 void bzero(void *ptr, size_t size)
 {

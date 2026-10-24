@@ -97,8 +97,9 @@ s32 g_NetLobbyRoom = 0;
 
 static char s_LobbyUrl[256] = "";
 
-#ifdef PD_GHOST_NET
-
+// Declared without PD_GHOST_NET as well: the code that reads them outside the
+// HTTP paths (pings, host migration) is not guarded, and without libcurl (the
+// Android build) they keep their empty values.
 static SDL_mutex *s_Lock = NULL;
 static SDL_cond *s_Wake = NULL;
 static SDL_Thread *s_ActionThread = NULL;
@@ -167,8 +168,6 @@ static struct netaddr s_PendUdpAddr; // the lobby's rendezvous, from /ping (acti
 static u32 s_PendUdpSeq = 0;
 static u64 s_UdpTried = 0;        // action thread only
 static s32 s_UdpDone = 0;         // action thread only: learnt, or the lobby offers none
-
-#endif
 
 /**
  * Where the rooms come from (the online pages' first page, 2026-10-14):

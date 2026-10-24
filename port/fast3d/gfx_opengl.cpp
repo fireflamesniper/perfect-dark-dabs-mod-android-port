@@ -285,7 +285,9 @@ static struct ShaderProgram* gfx_opengl_create_and_load_new_shader(uint64_t shad
     vs_len += sprintf(vs_buf + vs_len, "#version %s\n", gl_glsl_version_str);
 
     if (gl_es) {
-        append_line(vs_buf, &vs_len, "precision mediump float;");
+        // highp: mediump is half floats on mobile GPUs (Mali, Adreno), too
+        // coarse for positions and texture coordinates
+        append_line(vs_buf, &vs_len, "precision highp float;");
     }
 
     if (gl_glsl_version >= 130) {
@@ -388,7 +390,9 @@ static struct ShaderProgram* gfx_opengl_create_and_load_new_shader(uint64_t shad
     fs_len += sprintf(fs_buf + fs_len, "#version %s\n", gl_glsl_version_str);
 
     if (gl_es) {
-        append_line(fs_buf, &fs_len, "precision mediump float;");
+        // GLES 3 guarantees highp here too, and the combiner's wraps and
+        // texel offsets need it
+        append_line(fs_buf, &fs_len, "precision highp float;");
     }
 
     if (gl_glsl_version >= 130) {
@@ -1748,7 +1752,10 @@ static void *gl_load_proc(const char *name) {
         }
     }
 
-    sysLogPrintf(LOG_ERROR, "GL: could not find function: %s", name);
+    // glad asks for the whole desktop API, which a GLES driver mostly lacks
+    if (!gl_es) {
+        sysLogPrintf(LOG_ERROR, "GL: could not find function: %s", name);
+    }
 
     return NULL;
 }
@@ -1787,17 +1794,24 @@ static void gfx_opengl_init_extensions(void) {
 }
 
 static void gfx_opengl_init(void) {
-    if (!gladLoadGLLoader(gl_load_proc) || glGetString == NULL || glEnable == NULL) {
-        sysFatalSetupError("Could not load OpenGL.\nReported SDL error: %s", SDL_GetError());
-    }
-
     // check if we're using ES or core, which have more limited feature sets
+    // (before the loader, which says less about missing functions on ES)
     int val = 0;
     SDL_GL_GetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, &val);
     gl_core_profile = (val == SDL_GL_CONTEXT_PROFILE_CORE);
     gl_es = (val == SDL_GL_CONTEXT_PROFILE_ES);
 
+    if (!gladLoadGLLoader(gl_load_proc) || glGetString == NULL || glEnable == NULL) {
+        sysFatalSetupError("Could not load OpenGL.\nReported SDL error: %s", SDL_GetError());
+    }
+
     gfx_opengl_init_extensions();
+
+    // GLES's depth clamp is EXT_depth_clamp (Mali, Adreno), same enum as the
+    // ARB one; without it the vertex shader squashes depth to fake it
+    if (gl_es && SDL_GL_ExtensionSupported("GL_EXT_depth_clamp")) {
+        GLAD_GL_ARB_depth_clamp = 1;
+    }
 
     {
         // kept for the F3 trace's [display] section

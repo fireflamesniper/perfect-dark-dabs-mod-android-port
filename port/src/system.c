@@ -13,6 +13,9 @@
 #include <PR/ultratypes.h>
 #include "platform.h"
 #include "system.h"
+#ifdef PLATFORM_ANDROID
+#include <android/log.h>
+#endif
 #include "crashreport.h"
 #include "video.h"
 
@@ -219,8 +222,14 @@ void sysLogPrintf(s32 level, const char *fmt, ...)
 		}
 	}
 
+#ifdef PLATFORM_ANDROID
+	// an app's stdout and stderr go nowhere: the log is logcat (tag pd)
+	static const int prio[3] = { ANDROID_LOG_INFO, ANDROID_LOG_WARN, ANDROID_LOG_ERROR };
+	__android_log_print(prio[level], "pd", "%s", logmsg);
+#else
 	FILE *fout = (level == LOG_NOTE) ? stdout : stderr;
 	fprintf(fout, "%s%s\n", prefix[level], logmsg);
+#endif
 
 	// And into the ring a crash report is built from, which is the only copy
 	// of these lines a player who never passed --log has.
@@ -379,8 +388,39 @@ s32 sysRestartRequested(void)
 	return restartRequested;
 }
 
+#ifdef PLATFORM_ANDROID
+/**
+ * There is no executable folder a player can reach on Android, so the app's
+ * external files directory stands in for it and for the home directory:
+ * /sdcard/Android/data/<package>/files, which a file manager or a computer
+ * over USB can put the ROM in (data/pd.ntsc-final.z64) and which needs no
+ * storage permission. fsInit() runs portable here, so it holds everything.
+ */
+static void sysGetAndroidPath(char *outPath, const u32 outLen)
+{
+	const char *path = SDL_AndroidGetExternalStoragePath();
+
+	if (!path || !*path) {
+		path = SDL_AndroidGetInternalStoragePath();
+	}
+
+	if (path && *path) {
+		strncpy(outPath, path, outLen - 1);
+		outPath[outLen - 1] = '\0';
+	} else if (outLen > 1) {
+		outPath[0] = '.';
+		outPath[1] = '\0';
+	}
+}
+#endif
+
 void sysGetExecutablePath(char *outPath, const u32 outLen)
 {
+#ifdef PLATFORM_ANDROID
+	sysGetAndroidPath(outPath, outLen);
+	return;
+#endif
+
 	// try asking SDL
 	char *sdlPath = SDL_GetBasePath();
 
@@ -415,6 +455,11 @@ void sysGetExecutablePath(char *outPath, const u32 outLen)
 
 void sysGetHomePath(char *outPath, const u32 outLen)
 {
+#ifdef PLATFORM_ANDROID
+	sysGetAndroidPath(outPath, outLen);
+	return;
+#endif
+
 	// try asking SDL
 	char *sdlPath = SDL_GetPrefPath("", "perfectdark");
 

@@ -67,6 +67,9 @@ elseif(APPLE)
 elseif(NINTENDO_SWITCH)
   # Switch
   set(TARGET_OS "nswitch")
+elseif(ANDROID)
+  # Android: built by Gradle (android/), as libmain.so for SDL's activity
+  set(TARGET_OS "android")
 elseif(UNIX)
   # Generic *nix; assume Linux
   set(TARGET_OS "linux")
@@ -258,6 +261,12 @@ add_compile_options(
   -fdiagnostics-color=always
 )
 
+# The NDK makes this an error by default, and the decomp passes langGet()
+# strings as formats throughout
+if(ANDROID)
+  add_compile_options(-Wno-error=format-security -Wno-format-security)
+endif()
+
 # C specific flags
 add_compile_options($<$<COMPILE_LANGUAGE:C>:-Wno-pointer-sign>)
 
@@ -278,7 +287,22 @@ endif()
 set(LIBS )
 
 # SDL2
-find_package(SDL2 REQUIRED)
+if(ANDROID)
+  # Built from source beside the game: its Java half (SDLActivity) has to
+  # match the library, so the Gradle build fetches one release for both and
+  # passes its directory here (android/app/build.gradle).
+  if(NOT SDL2_SOURCE_DIR)
+    message(FATAL_ERROR "Android: SDL2_SOURCE_DIR must point at an SDL2 source tree")
+  endif()
+  set(SDL_STATIC OFF CACHE BOOL "" FORCE)
+  set(SDL_SHARED ON CACHE BOOL "" FORCE)
+  set(SDL_TEST OFF CACHE BOOL "" FORCE)
+  add_subdirectory("${SDL2_SOURCE_DIR}" SDL2 EXCLUDE_FROM_ALL)
+  set(SDL2_INCLUDE_DIR "${SDL2_SOURCE_DIR}/include")
+  set(SDL2_LIBRARY SDL2)
+else()
+  find_package(SDL2 REQUIRED)
+endif()
 if(NINTENDO_SWITCH)
   if(NOT SDL2_LIBRARY OR NOT SDL2_INCLUDE_DIR)
     # sometimes FindSDL2 just wants us to suffer and does not set these
@@ -333,6 +357,8 @@ if(NOT GL_LIBRARY)
     set(GL_LIBRARY opengl32)
   elseif(NINTENDO_SWITCH)
     set(GL_LIBRARY EGL glapi drm_nouveau)
+  elseif(ANDROID)
+    set(GL_LIBRARY GLESv3 EGL)
   elseif(APPLE)
     set(GL_LIBRARY "-framework OpenGL")
   else()
@@ -347,7 +373,7 @@ list(APPEND LIBS "${GL_LIBRARY}")
 # the headers and shaderc, which compiles its combiner shaders as they are
 # first seen. Without either the build goes on with OpenGL alone.
 option(PD_VULKAN "Build the Vulkan renderer" ON)
-if(PD_VULKAN AND NOT NINTENDO_SWITCH)
+if(PD_VULKAN AND NOT NINTENDO_SWITCH AND NOT ANDROID)
   find_path(VULKAN_HEADERS_DIR vulkan/vulkan.h)
   find_path(SHADERC_INCLUDE_DIR shaderc/shaderc.h)
   # Static only: a shared shaderc (or its DLL's import library) would be one
@@ -422,6 +448,8 @@ if(NOT EXTRA_LIBRARIES)
         -Wl,-Bstatic,--whole-archive -lwinpthread -Wl,--no-whole-archive,-Bdynamic)
   elseif(NINTENDO_SWITCH)
     set(EXTRA_LIBRARIES stdc++ pthread)
+  elseif(ANDROID)
+    set(EXTRA_LIBRARIES android log m dl)
   else()
     set(EXTRA_LIBRARIES stdc++ m dl)
   endif()
@@ -637,12 +665,21 @@ endif()
 
 # Asset files
 
-generate_asset_headers("lang/" "${CMAKE_SOURCE_DIR}/tools/assetmgr/mklang" "en" JSON_HEADERS)
-generate_asset_headers("pads/" "${CMAKE_SOURCE_DIR}/tools/assetmgr/mkpads" "" JSON_HEADERS)
-generate_asset_headers("tiles/" "${CMAKE_SOURCE_DIR}/tools/assetmgr/mktiles" "" JSON_HEADERS)
-generate_asset_headers("animations.json" "${CMAKE_SOURCE_DIR}/tools/assetmgr/mkanims" "" JSON_HEADERS)
-generate_asset_headers("sequences.json" "${CMAKE_SOURCE_DIR}/tools/assetmgr/mksequences" "" JSON_HEADERS)
-generate_asset_headers("textures.json" "${CMAKE_SOURCE_DIR}/tools/assetmgr/mktextures" "" JSON_HEADERS)
+# The generators are Python scripts run by their #! line, which a Windows host
+# (the Android build from Android Studio) cannot do, so they are handed to the
+# interpreter there.
+find_package(Python3 COMPONENTS Interpreter)
+set(ASSETMGR_RUN "")
+if(CMAKE_HOST_WIN32 AND Python3_Interpreter_FOUND)
+  set(ASSETMGR_RUN "${Python3_EXECUTABLE}")
+endif()
+
+generate_asset_headers("lang/" "${ASSETMGR_RUN};${CMAKE_SOURCE_DIR}/tools/assetmgr/mklang" "en" JSON_HEADERS)
+generate_asset_headers("pads/" "${ASSETMGR_RUN};${CMAKE_SOURCE_DIR}/tools/assetmgr/mkpads" "" JSON_HEADERS)
+generate_asset_headers("tiles/" "${ASSETMGR_RUN};${CMAKE_SOURCE_DIR}/tools/assetmgr/mktiles" "" JSON_HEADERS)
+generate_asset_headers("animations.json" "${ASSETMGR_RUN};${CMAKE_SOURCE_DIR}/tools/assetmgr/mkanims" "" JSON_HEADERS)
+generate_asset_headers("sequences.json" "${ASSETMGR_RUN};${CMAKE_SOURCE_DIR}/tools/assetmgr/mksequences" "" JSON_HEADERS)
+generate_asset_headers("textures.json" "${ASSETMGR_RUN};${CMAKE_SOURCE_DIR}/tools/assetmgr/mktextures" "" JSON_HEADERS)
 
 add_custom_target(pd_headers ALL DEPENDS ${JSON_HEADERS})
 
@@ -653,7 +690,6 @@ set(LANGPACK_C "${CMAKE_BINARY_DIR}/langpacks.c")
 file(GLOB_RECURSE LANG_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/lang/*.json")
 # lang/_source/ is the generated English catalogs (tools/langpack/extract.py), not a language
 list(FILTER LANG_SOURCES EXCLUDE REGEX "/lang/_source/")
-find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
   add_custom_command(
     OUTPUT ${LANGPACK_C}
@@ -674,7 +710,13 @@ list(APPEND SRC ${LANGPACK_C})
 # Game target
 
 set(BIN_NAME "${BIN_BASENAME}")
-add_executable(pd ${SRC})
+if(ANDROID)
+  # SDLActivity loads libmain.so and calls its SDL_main
+  add_library(pd SHARED ${SRC})
+  set(BIN_NAME "main")
+else()
+  add_executable(pd ${SRC})
+endif()
 add_dependencies(pd pd_headers)
 target_link_libraries(pd ${LIBS})
 set_target_properties(pd PROPERTIES OUTPUT_NAME "${BIN_NAME}")
