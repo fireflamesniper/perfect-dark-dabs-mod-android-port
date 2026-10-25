@@ -473,7 +473,8 @@ static const char *traceReportBaseName(const char *path)
 	return slash ? slash + 1 : path;
 }
 
-#ifdef PD_GHOST_NET
+// Not on Android, like crashReportSend()
+#if defined(PD_GHOST_NET) && !defined(PLATFORM_ANDROID)
 
 static bool traceReportSend(char *err, u32 errsize)
 {

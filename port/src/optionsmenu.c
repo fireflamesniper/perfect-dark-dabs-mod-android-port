@@ -2777,7 +2777,9 @@ static const struct modpreset g_ModPresets[] = {
 	{ "Custom",           0,    0,                0,     0,      0,              0,     0,    0,      0,    0,     0,     0,     0,     0,     0,      0,             0,             0,             0,               0,      0,       0,         0,         0,     0,     0,     0,     0              },
 	{ "Vanilla",          0,    MODROLL_OFF,      false, false,  MODTILT_OFF,    false, true, 0,      0,    64,    false, false, true,  false, false,  MODENHANCE_OFF, MODVIVID_OFF,  MODBLACK_OFF,  MODGHOST_OFF,    true,   true,    false,     false,     false, 0,     true,  false, KILLFEED_AUTO },
 	{ "Dab's Settings",   1,    MODROLL_EVERYONE, true,  true,   MODTILT_NORMAL, false, true, 128,    0,    64,    false, false, true,  true,  true,   MODENHANCE_2X, MODVIVID_LIGHT, MODBLACK_LIGHT, MODGHOST_OFF,    true,   true,    true,      true,      false, 50,    true,  true,  KILLFEED_ON   },
+#ifndef PLATFORM_ANDROID // with Ghost Trials, hidden on Android
 	{ "Ghost Trials",     0,    MODROLL_OFF,      false, false,  MODTILT_OFF,    false, true, 0,      0,    64,    false, false, true,  false, false,  MODENHANCE_OFF, MODVIVID_OFF,  MODBLACK_OFF,  MODGHOST_RACE,   true,   true,    false,     false,     false, 0,     true,  false, KILLFEED_AUTO },
+#endif
 };
 
 static void menuhandlerModPresetApply(const struct modpreset *preset)
@@ -5789,6 +5791,8 @@ struct menuitem g_ExtendedDabsModMissionMenuItems[] = {
 		0,
 		menuhandlerModBodiesDrawn,
 	},
+#ifndef PLATFORM_ANDROID
+	// Android: hidden with Ghost Trials, the only place they apply
 	{
 		MENUITEMTYPE_SEPARATOR,
 		0,
@@ -5829,6 +5833,7 @@ struct menuitem g_ExtendedDabsModMissionMenuItems[] = {
 		0,
 		menuhandlerModGhostSplits,
 	},
+#endif
 	{
 		// GoldenEye's rows a group of their own, not the ghost's (F3
 		// 20260928-025120)
@@ -7868,6 +7873,8 @@ struct menuitem g_ExtendedAdvancedMenuItems[] = {
 		90,
 		menuhandlerMaxExplosions,
 	},
+#ifndef PLATFORM_ANDROID
+	// Android: hidden with the online pages
 	{
 		MENUITEMTYPE_SLIDER,
 		0,
@@ -7876,6 +7883,7 @@ struct menuitem g_ExtendedAdvancedMenuItems[] = {
 		10,
 		menuhandlerOnlineTextSize,
 	},
+#endif
 	{
 		MENUITEMTYPE_SEPARATOR,
 		0,
@@ -7892,6 +7900,8 @@ struct menuitem g_ExtendedAdvancedMenuItems[] = {
 		7,
 		menuhandlerModKeyBind,
 	},
+#ifndef PLATFORM_ANDROID
+	// Android sends no reports (crashReportCanSend())
 	{
 		MENUITEMTYPE_CHECKBOX,
 		0,
@@ -7900,6 +7910,7 @@ struct menuitem g_ExtendedAdvancedMenuItems[] = {
 		0,
 		menuhandlerReportOffer,
 	},
+#endif
 	{
 		MENUITEMTYPE_SEPARATOR,
 		0,

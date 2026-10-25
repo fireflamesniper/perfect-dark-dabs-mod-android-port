@@ -272,14 +272,16 @@ void crashReportDiscard(void)
 
 s32 crashReportCanSend(void)
 {
-#ifdef PD_GHOST_NET
+#if defined(PD_GHOST_NET) && !defined(PLATFORM_ANDROID)
 	return true;
 #else
 	return false;
 #endif
 }
 
-#ifdef PD_GHOST_NET
+// Not on Android: its reports are not Dab's (the PC port's) to read. They are
+// still saved, for reading off the device.
+#if defined(PD_GHOST_NET) && !defined(PLATFORM_ANDROID)
 
 s32 crashReportSend(const char *path, const char *note, char *err, u32 errsize)
 {

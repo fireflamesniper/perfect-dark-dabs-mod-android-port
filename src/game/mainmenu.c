@@ -5462,6 +5462,8 @@ struct menuitem g_MainMenuMenuItems[] = {
 		menuhandlerMainMenuSoloMissions,
 	},
 #ifndef PLATFORM_N64
+#ifndef PLATFORM_ANDROID
+	// Android: hidden for now, not gone (the leaderboards are the PC port's)
 	{
 		MENUITEMTYPE_SELECTABLE,
 		0,
@@ -5470,6 +5472,7 @@ struct menuitem g_MainMenuMenuItems[] = {
 		0x00000008,
 		(void *)&g_GhostModeMenuDialog,
 	},
+#endif
 	{
 		MENUITEMTYPE_SELECTABLE,
 		0,
@@ -5527,9 +5530,10 @@ struct menuitem g_MainMenuMenuItems[] = {
 		0x00000003,
 		menuhandlerMainMenuCombatSimulator,
 	},
-#ifndef PLATFORM_N64
+#if !defined(PLATFORM_N64) && !defined(PLATFORM_ANDROID)
 	{
-		// netplay: the lobby's rooms, one step from here (port/src/netlobbymenu.c)
+		// netplay: the lobby's rooms, one step from here (port/src/netlobbymenu.c).
+		// Android: hidden for now, not gone
 		MENUITEMTYPE_SELECTABLE,
 		0,
 		MENUITEMFLAG_BIGFONT,
@@ -5563,6 +5567,9 @@ struct menuitem g_MainMenuMenuItems[] = {
 		(void *)&g_ChangeAgentMenuDialog,
 	},
 #ifndef PLATFORM_N64
+#ifndef PLATFORM_ANDROID
+	// Android: no updater (its releases are PC builds) and no crash reports
+	// sent to Dab, so neither page
 	{
 		MENUITEMTYPE_SELECTABLE,
 		0,
@@ -5579,6 +5586,7 @@ struct menuitem g_MainMenuMenuItems[] = {
 		0x0000000b,
 		(void *)&g_CrashReportMenuDialog,
 	},
+#endif
 	{
 		MENUITEMTYPE_SELECTABLE,
 		0,

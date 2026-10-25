@@ -294,8 +294,11 @@ int main(int argc, const char **argv)
 	recordInit();
 	ghostnetInit();
 	updateInit();
+#ifndef PLATFORM_ANDROID
 	// The update notice's check, on the updater's worker: nothing waits for it.
+	// Android has no updater: the releases it would find are PC builds.
 	updatenoticeStart();
+#endif
 	// A report from a run that did not come back, so the menu can offer it.
 	crashReportScan();
 	if (!g_NetDedicated) {
