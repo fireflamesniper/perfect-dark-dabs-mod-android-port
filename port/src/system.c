@@ -390,15 +390,22 @@ s32 sysRestartRequested(void)
 
 #ifdef PLATFORM_ANDROID
 /**
- * There is no executable folder a player can reach on Android, so the app's
- * external files directory stands in for it and for the home directory:
- * /sdcard/Android/data/<package>/files, which a file manager or a computer
- * over USB can put the ROM in (data/pd.ntsc-final.z64) and which needs no
- * storage permission. fsInit() runs portable here, so it holds everything.
+ * There is no executable folder a player can reach on Android, so a folder
+ * of the player's stands in for it and for the home directory: PD-Dab in the
+ * phone's storage, which the app hands over in PD_DATA_DIR once it has file
+ * access (android/.../SetupActivity.java), and otherwise the app's own
+ * external files directory, /sdcard/Android/data/<package>/files, which needs
+ * no permission. Either way a file manager or a computer over USB can put the
+ * ROM in its data/ (data/pd.ntsc-final.z64). fsInit() runs portable here, so
+ * it holds everything.
  */
 static void sysGetAndroidPath(char *outPath, const u32 outLen)
 {
-	const char *path = SDL_AndroidGetExternalStoragePath();
+	const char *path = getenv("PD_DATA_DIR");
+
+	if (!path || !*path) {
+		path = SDL_AndroidGetExternalStoragePath();
+	}
 
 	if (!path || !*path) {
 		path = SDL_AndroidGetInternalStoragePath();

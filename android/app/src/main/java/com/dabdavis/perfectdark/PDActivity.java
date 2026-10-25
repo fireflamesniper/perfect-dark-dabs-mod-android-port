@@ -20,6 +20,11 @@ public class PDActivity extends SDLActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // the game's folder (SetupActivity), before SDL starts the game
+        if (!getIntent().getBooleanExtra(SetupActivity.EXTRA_APP_FOLDER, false)) {
+            SetupActivity.exportGameDir(this);
+        }
+
         super.onCreate(savedInstanceState);
 
         // the picture runs under the camera cutout too, rather than stopping

@@ -85,6 +85,7 @@ public class TouchControlsView extends View implements InputManager.InputDeviceL
     private boolean enabled;
     private boolean padHidden;
     private boolean shown;
+    private float textSize;
     private final Button toggle = new Button("TOUCH", "", -1, 0.035f, 0.07f, 22);
     private int sentButtons = 0;
     private final float[] sentAxes = new float[4];
@@ -185,7 +186,8 @@ public class TouchControlsView extends View implements InputManager.InputDeviceL
         toggle.r = toggle.rdp * density * scale;
         stickRadius = 64 * density * scale;
         lookRadius = 56 * density * scale;
-        text.setTextSize(12 * density * scale);
+        textSize = 12 * density * scale;
+        text.setTextSize(textSize);
         subText.setTextSize(10 * density * scale);
     }
 
@@ -359,7 +361,9 @@ public class TouchControlsView extends View implements InputManager.InputDeviceL
         canvas.drawCircle(toggle.cx, toggle.cy, toggle.r, fill);
         canvas.drawCircle(toggle.cx, toggle.cy, toggle.r, stroke);
         text.setAlpha(shown ? 0xD0 : 0x70);
+        fitLabel(toggle.label, toggle.r);
         canvas.drawText(toggle.label, toggle.cx, toggle.cy, text);
+        text.setTextSize(textSize);
         text.setAlpha(0xD0);
         subText.setAlpha(shown ? 0x90 : 0x60);
         canvas.drawText(enabled ? "ON" : "OFF", toggle.cx, toggle.cy - subText.ascent() + 2 * density, subText);
@@ -399,12 +403,24 @@ public class TouchControlsView extends View implements InputManager.InputDeviceL
             stroke.setColor(held ? 0xC0FFFFFF : 0x70FFFFFF);
             canvas.drawCircle(b.cx, b.cy, b.r, fill);
             canvas.drawCircle(b.cx, b.cy, b.r, stroke);
+            fitLabel(b.label, b.r);
             if (b.sub.isEmpty()) {
                 canvas.drawText(b.label, b.cx, b.cy - (text.ascent() + text.descent()) / 2, text);
             } else {
                 canvas.drawText(b.label, b.cx, b.cy, text);
                 canvas.drawText(b.sub, b.cx, b.cy - subText.ascent() + 2 * density, subText);
             }
+            text.setTextSize(textSize);
+        }
+    }
+
+    // a label too wide for its circle (RELOAD on a small one) drawn smaller
+    private void fitLabel(String label, float r) {
+        text.setTextSize(textSize);
+        float w = text.measureText(label);
+        float room = r * 1.6f;
+        if (w > room) {
+            text.setTextSize(textSize * room / w);
         }
     }
 }

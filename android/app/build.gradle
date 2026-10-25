@@ -45,7 +45,9 @@ android {
     ndkVersion '27.0.12077973'
 
     defaultConfig {
-        applicationId 'com.dabdavis.perfectdark'
+        // its own id, so it installs beside other Perfect Dark ports (its files are
+        // under Android/data/<this id>/); the Java package stays com.dabdavis.perfectdark
+        applicationId 'com.dabdavis.perfectdarkdabsmod'
         minSdk 26
         targetSdk 34
         versionCode 1
@@ -102,8 +104,13 @@ android {
 
     packagingOptions {
         jniLibs {
-            // keep the symbols: a crash's backtrace is read from the device
-            keepDebugSymbols += ['**/*.so']
+            // Stripped by default (libmain.so is 40 MB with its DWARF, 11
+            // without). -PpdKeepSymbols keeps them, for reading a crash's
+            // backtrace on the device; the unstripped copy is always in
+            // app/build/intermediates/cxx/ for addr2line.
+            if (project.hasProperty('pdKeepSymbols')) {
+                keepDebugSymbols += ['**/*.so']
+            }
         }
     }
 }

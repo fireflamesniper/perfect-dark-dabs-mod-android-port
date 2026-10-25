@@ -27,13 +27,13 @@ adds an emulator ABI.
 The game reads everything from the app's external files folder:
 
 ```
-/sdcard/Android/data/com.dabdavis.perfectdark/files/
+/sdcard/Android/data/com.dabdavis.perfectdarkdabsmod/files/
     data/pd.ntsc-final.z64     <- the ROM goes here
     pd.ini, saves, added-content/, mods/ ...
 ```
 
 Copy it there with a file manager, over USB, or with
-`adb push pd.ntsc-final.z64 /sdcard/Android/data/com.dabdavis.perfectdark/files/data/`.
+`adb push pd.ntsc-final.z64 /sdcard/Android/data/com.dabdavis.perfectdarkdabsmod/files/data/`.
 The folder exists once the app has been started once. No storage permission is
 needed.
 
@@ -43,6 +43,17 @@ Any controller Android or SDL's HIDAPI drivers know (Xbox, PlayStation,
 Switch Pro, 8BitDo, SHIELD...) works the way it does on PC, binds included.
 Back (the system bar's, or a pad's Back/Select when Android sends it as Back)
 is Escape.
+
+On-screen controls (`TouchControlsView.java`) are player 1's pad: the left of
+the screen is the movement stick, a drag elsewhere looks, and the buttons are
+the pad's (FIRE = RT, AIM = LT, USE = A, BACK = B, RELOAD = X, WEAPON = Y, ALT
+= RB, RADIAL = LB, CROUCH = L3, PAUSE = Start), so the controller binds apply
+and a real pad keeps working beside them. The TOUCH button top left turns them
+off and on (remembered). While on, they hide when a gamepad connects and come
+back at a touch.
+
+The APK's libraries are stripped; `./gradlew assembleRelease -PpdKeepSymbols`
+keeps the DWARF in them.
 
 ## What is missing
 

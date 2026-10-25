@@ -10,6 +10,11 @@
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />
     <uses-feature android:name="android.software.leanback" android:required="false" />
 
+    <!-- PD-Dab, the game's folder in the phone's storage (SetupActivity):
+         All files access from Android 11, the storage permission before -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
     <!-- Online matches, Ghost Trials and the lobby -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -30,6 +35,20 @@
         android:requestLegacyExternalStorage="true"
         android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
 
+        <!-- asks for the PD-Dab folder, then starts the game -->
+        <activity
+            android:name=".SetupActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:screenOrientation="sensorLandscape"
+            android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity>
+
         <activity
             android:name=".PDActivity"
             android:exported="true"
@@ -40,11 +59,6 @@
             android:resizeableActivity="false"
             android:preferMinimalPostProcessing="true"
             android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
-            </intent-filter>
             <!-- USB controllers SDL's HIDAPI drivers can open -->
             <intent-filter>
                 <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
