@@ -31,3 +31,32 @@ cmake-build-debug
 # Generated English source catalogs (tools/langpack/extract.py): GoldenEye's
 # English is Rare's text and is never committed
 lang/_source/
+
+# Never committed: ROMs (Perfect Dark, GoldenEye 007, any other), Goldfinger 64
+# and other hacks' .bsp patches, what the game converts or extracts from them,
+# and a player's own files (saves, settings, the PD-Dab folder copied off a
+# phone)
+*.z64
+*.n64
+*.v64
+*.rom
+*.bsp
+*.xdelta
+*.ips
+*.bps
+*.eep
+*.sra
+*.fla
+*.mpk
+eeprom.bin
+mpsetups.bin
+pd.ini
+PD-Dab/
+/data/
+saves/
+added-content/
+model-packs/
+mods/
+ghosts/
+crashes/
+*.converting
